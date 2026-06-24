@@ -422,6 +422,72 @@
     .score-hero { flex-direction: column; gap: 1rem; }
     header h1 { font-size: 1.6rem; }
   }
+
+  .tab-bar {
+    display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap;
+  }
+  .tab-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 16px; color: var(--muted);
+    font-size: 13px; cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .tab-btn:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+
+  .doc-api-note {
+    background: rgba(124,106,247,0.08);
+    border: 1px solid rgba(124,106,247,0.2);
+    border-radius: 10px; padding: 1rem 1.25rem;
+    font-size: 13px; color: var(--muted); margin-bottom: 1rem;
+  }
+  .doc-api-note a { color: var(--accent); text-decoration: none; }
+  .doc-api-note a:hover { text-decoration: underline; }
+
+  .api-key-row {
+    display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .api-key-row input {
+    flex: 1; min-width: 180px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 12px;
+    color: var(--text); font-size: 13px; outline: none;
+  }
+  .api-key-row input:focus { border-color: var(--accent); }
+  .api-key-row input::placeholder { color: var(--muted); }
+  .btn-small {
+    background: var(--accent); color: white; border: none;
+    border-radius: 8px; padding: 7px 14px; font-size: 13px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn-small:hover { opacity: 0.85; }
+
+  .campsite-loading { color: var(--muted); font-size: 13px; padding: 1rem 0; }
+
+  .camp-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1rem 1.25rem;
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .camp-card .c-icon {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: rgba(79,195,247,0.12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .camp-card .c-info { flex: 1; min-width: 150px; }
+  .camp-card .c-name { font-weight: 500; font-size: 14px; }
+  .camp-card .c-details { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .camp-card .c-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+  .camp-tag {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 7px; font-size: 11px; color: var(--muted);
+  }
+  .camp-card .c-score {
+    font-size: 1.4rem; font-weight: 300; min-width: 45px; text-align: right;
+  }
+  .camp-card .c-dist { font-size: 11px; color: var(--muted); text-align: right; }
+
 </style>
 </head>
 <body>
@@ -500,8 +566,19 @@
     </div>
 
     <div class="dark-sky-section">
-      <h3>Nearest dark sky reserves</h3>
-      <div class="reserve-list" id="reserveList"></div>
+      <h3>Nearby stargazing spots</h3>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('reserves', this)">🌌 Dark Sky Reserves</button>
+        <button class="tab-btn" onclick="switchTab('campsites', this)">🏕️ DOC Campsites</button>
+      </div>
+
+      <div id="tab-reserves">
+        <div class="reserve-list" id="reserveList"></div>
+      </div>
+
+      <div id="tab-campsites" style="display:none">
+        <div id="campsiteList"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -543,13 +620,16 @@ function generateStars() {
 
 generateStars();
 
-// Register service worker
+// Register service worker only on GitHub Pages (not preview/local URLs)
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/Stargaze/sw.js")
-      .then(reg => console.log("[SW] Registered:", reg.scope))
-      .catch(err => console.log("[SW] Failed:", err));
-  });
+  const isGitHubPages = location.hostname.endsWith("github.io");
+  if (isGitHubPages) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/Stargaze/sw.js")
+        .then(reg => console.log("[SW] Registered:", reg.scope))
+        .catch(err => console.log("[SW] Failed:", err));
+    });
+  }
 }
 
 // Offline banner
@@ -863,6 +943,9 @@ function renderResults(lat, lng, name, data) {
 
   renderReserves(lat, lng, data, moon);
 
+  // Auto-load DOC campsites with built-in key
+  fetchDOCCampsites(lat, lng, "4aeacVCtRA4BEfT0U1zQH2xm6D5mYAGh2hkVR1NA", data, moon);
+
   document.getElementById('results').classList.add('visible');
   document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -910,6 +993,112 @@ function showError(msg) {
 function clearError() {
   document.getElementById('errorMsg').classList.remove('visible');
 }
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-reserves').style.display = tab === 'reserves' ? 'block' : 'none';
+  document.getElementById('tab-campsites').style.display = tab === 'campsites' ? 'block' : 'none';
+  if (tab === 'campsites' && currentLat) {
+    if (document.getElementById('campsiteList').innerHTML === '') {
+      fetchDOCCampsites(currentLat, currentLng, "4aeacVCtRA4BEfT0U1zQH2xm6D5mYAGh2hkVR1NA", currentWeather, moonPhase(new Date()));
+    }
+  }
+}
+
+function saveDOCKey() {
+  // Key is built-in, nothing to save
+}
+
+async function fetchDOCCampsites(lat, lng, apiKey, weatherData, moon) {
+  const list = document.getElementById('campsiteList');
+  list.innerHTML = '<div class="campsite-loading">⏳ Fetching DOC campsites near you…</div>';
+
+  try {
+    // DOC API: get campsites within radius
+    const url = `https://api.doc.govt.nz/v2/campsites/geodata?lat=${lat}&lon=${lng}&radius=150`;
+    const res = await fetch(url, {
+      headers: { 'x-api-key': apiKey }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      list.innerHTML = '<div class="doc-api-note" style="border-color:var(--poor);color:#f08080">❌ Invalid API key. Double-check it at api.doc.govt.nz</div>';
+      return;
+    }
+
+    if (!res.ok) throw new Error('DOC API error: ' + res.status);
+
+    const raw = await res.json();
+
+    // DOC returns GeoJSON — extract features
+    const features = raw.features || raw;
+    if (!features.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:14px">No DOC campsites found within 150km.</p>';
+      return;
+    }
+
+    // Score and sort by distance then sky score
+    const todayCloud = weatherData?.daily?.cloud_cover_mean?.[0] ?? 50;
+
+    const scored = features.map(f => {
+      const props = f.properties || f;
+      const coords = f.geometry?.coordinates || [props.lon, props.lat];
+      const cLng = coords[0], cLat = coords[1];
+      const dist = Math.round(haversine(lat, lng, cLat, cLng));
+      const lpScore = lightPollutionScore(cLat, cLng).score;
+      const skyScore = computeScore(todayCloud, 65, 10, moon.illum, lpScore);
+      return { props, dist, skyScore, cLat, cLng };
+    })
+    .filter(c => c.dist <= 150)
+    .sort((a, b) => b.skyScore - a.skyScore || a.dist - b.dist)
+    .slice(0, 8);
+
+    renderCampsites(scored);
+
+  } catch(e) {
+    console.error(e);
+    list.innerHTML = `<div class="doc-api-note" style="border-color:var(--poor);color:#f08080">
+      ❌ Could not load DOC campsite data. Check your API key or try again.<br>
+      <small>${e.message}</small>
+    </div>`;
+  }
+}
+
+function renderCampsites(campsites) {
+  const list = document.getElementById('campsiteList');
+  if (!campsites.length) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:14px">No campsites found nearby.</p>';
+    return;
+  }
+
+  list.innerHTML = campsites.map(c => {
+    const p = c.props;
+    const name = p.name || p.assetName || 'DOC Campsite';
+    const region = p.region || p.place || '';
+    const facilities = [];
+    if (p.toilets || p.toiletFacilities) facilities.push('🚽 Toilets');
+    if (p.water || p.drinkingWater) facilities.push('💧 Water');
+    if (p.bookingRequired) facilities.push('📅 Booking required');
+    if (p.status === 'Open' || p.open) facilities.push('✅ Open');
+
+    const docsUrl = p.directionsUrl || p.url ||
+      `https://www.doc.govt.nz/parks-and-recreation/places-to-stay/camping/find-a-campsite/?q=${encodeURIComponent(name)}`;
+
+    return `<div class="camp-card">
+      <div class="c-icon">🏕️</div>
+      <div class="c-info">
+        <div class="c-name"><a href="${docsUrl}" target="_blank" style="color:var(--text);text-decoration:none">${name}</a></div>
+        <div class="c-details">${region}${region ? ' · ' : ''}${c.dist}km away</div>
+        ${facilities.length ? `<div class="c-tags">${facilities.map(f => `<span class="camp-tag">${f}</span>`).join('')}</div>` : ''}
+      </div>
+      <div>
+        <div class="c-score" style="color:${scoreColor(c.skyScore)}">${c.skyScore}</div>
+        <div class="c-dist">sky score</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 </script>
 </body>
 </html>
