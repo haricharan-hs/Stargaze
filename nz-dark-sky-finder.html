@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NZ Dark Sky Finder</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #06060e;
+    --surface: #0d0d1a;
+    --surface2: #13132a;
+    --border: rgba(255,255,255,0.08);
+    --text: #e8e8f0;
+    --muted: #7a7a9a;
+    --accent: #7c6af7;
+    --accent2: #4fc3f7;
+    --good: #4caf84;
+    --okay: #e0a84b;
+    --poor: #e05555;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  header {
+    padding: 3rem 1.5rem 2rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .star-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(124,106,247,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .stars {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle var(--d, 3s) ease-in-out infinite var(--delay, 0s);
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: var(--lo, 0.2); }
+    50% { opacity: var(--hi, 0.9); }
+  }
+
+  header h1 {
+    font-size: 2.2rem;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    position: relative;
+  }
+
+  header h1 span { color: var(--accent); font-weight: 500; }
+
+  header p {
+    color: var(--muted);
+    margin-top: 0.5rem;
+    font-size: 1rem;
+    position: relative;
+  }
+
+  .main { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  .search-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .search-row {
+    display: flex; gap: 10px; align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .search-group { flex: 1; min-width: 200px; }
+
+  .search-group label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  .search-group input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .search-group input:focus { border-color: var(--accent); }
+  .search-group input::placeholder { color: var(--muted); }
+
+  .btn-search {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn-search:hover { opacity: 0.88; }
+  .btn-search:active { transform: scale(0.97); }
+  .btn-search:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .suggestions {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+
+  .suggestion-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .suggestion-item:last-child { border-bottom: none; }
+  .suggestion-item:hover { background: var(--surface); }
+
+  .results { display: none; }
+  .results.visible { display: block; }
+
+  .location-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .location-header h2 { font-size: 1.3rem; font-weight: 400; }
+  .location-header .coords { font-size: 13px; color: var(--muted); }
+
+  .score-hero {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .score-ring {
+    width: 120px; height: 120px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .score-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+
+  .score-ring .score-number {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transform: none;
+  }
+
+  .score-number .num {
+    font-size: 2rem;
+    font-weight: 300;
+    line-height: 1;
+  }
+
+  .score-number .label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .score-detail { flex: 1; min-width: 200px; }
+  .score-detail h3 { font-size: 1.2rem; font-weight: 400; margin-bottom: 0.25rem; }
+  .score-detail .verdict { font-size: 14px; color: var(--muted); margin-bottom: 1rem; }
+
+  .best-window {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    display: inline-block;
+  }
+  .best-window span { color: var(--accent2); font-weight: 500; }
+
+  .factors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+
+  .factor-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+
+  .factor-card .f-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 4px;
+  }
+
+  .factor-card .f-value {
+    font-size: 1.4rem;
+    font-weight: 300;
+    line-height: 1.2;
+  }
+
+  .factor-card .f-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .factor-card .f-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+
+  .factor-card .f-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  .week-section h3 {
+    font-size: 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1rem;
+  }
+
+  .week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 8px;
+    margin-bottom: 2rem;
+  }
+
+  .day-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .day-card:hover { border-color: var(--accent); background: var(--surface2); }
+  .day-card.active { border-color: var(--accent); background: var(--surface2); }
+
+  .day-card .day-name { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .day-card .day-num { font-size: 14px; margin-bottom: 8px; }
+
+  .day-score-dot {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 500;
+    margin: 0 auto;
+  }
+
+  .dark-sky-section h3 {
+    font-size: 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1rem;
+  }
+
+  .reserve-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 2rem; }
+
+  .reserve-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .reserve-card .r-icon {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(124,106,247,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .reserve-card .r-info { flex: 1; }
+  .reserve-card .r-name { font-weight: 500; font-size: 15px; }
+  .reserve-card .r-details { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .reserve-card .r-score {
+    font-size: 1.5rem;
+    font-weight: 300;
+    min-width: 50px;
+    text-align: right;
+  }
+
+  .hourly-section h3 {
+    font-size: 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1rem;
+  }
+
+  .hourly-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(55px, 1fr));
+    gap: 6px;
+    margin-bottom: 2rem;
+  }
+
+  .hour-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .hour-block .h-time { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+  .hour-block .h-score { font-weight: 500; font-size: 15px; }
+  .hour-block .h-cloud { color: var(--muted); font-size: 10px; margin-top: 2px; }
+
+  .loading {
+    text-align: center;
+    padding: 3rem;
+    color: var(--muted);
+    display: none;
+  }
+
+  .loading.visible { display: block; }
+
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    background: rgba(224,85,85,0.1);
+    border: 1px solid rgba(224,85,85,0.3);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    color: #f08080;
+    font-size: 14px;
+    display: none;
+    margin-bottom: 1rem;
+  }
+  .error-msg.visible { display: block; }
+
+  .legend {
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    font-size: 12px; color: var(--muted);
+    margin-bottom: 1.5rem;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  @media (max-width: 600px) {
+    .week-grid { grid-template-columns: repeat(4, 1fr); }
+    .score-hero { flex-direction: column; gap: 1rem; }
+    header h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="star-bg"></div>
+  <div class="stars" id="starfield"></div>
+  <h1>NZ <span>Dark Sky</span> Finder</h1>
+  <p>Stargazing conditions for any location in Aotearoa</p>
+</header>
+
+<div class="main">
+  <div class="search-box">
+    <div class="search-row">
+      <div class="search-group" style="flex:2">
+        <label>Location</label>
+        <input type="text" id="locationInput" placeholder="e.g. Lake Tekapo, Queenstown, Whangarei..." autocomplete="off">
+        <div class="suggestions" id="suggestions" style="display:none"></div>
+      </div>
+      <div class="search-group" style="flex:0 0 auto">
+        <label>&nbsp;</label>
+        <button class="btn-search" id="searchBtn" onclick="doSearch()">Check skies</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+  <div class="loading" id="loading"><div class="spinner"></div>Fetching sky conditions…</div>
+
+  <div class="results" id="results">
+    <div class="location-header">
+      <div>
+        <h2 id="locationName"></h2>
+        <div class="coords" id="locationCoords"></div>
+      </div>
+    </div>
+
+    <div class="score-hero">
+      <div class="score-ring">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"/>
+          <circle cx="60" cy="60" r="50" fill="none" id="scoreArc"
+            stroke="#7c6af7" stroke-width="10"
+            stroke-dasharray="314" stroke-dashoffset="314"
+            stroke-linecap="round"/>
+        </svg>
+        <div class="score-number">
+          <span class="num" id="scoreNum">--</span>
+          <span class="label">/ 100</span>
+        </div>
+      </div>
+      <div class="score-detail">
+        <h3 id="scoreTitle">--</h3>
+        <p class="verdict" id="scoreVerdict">--</p>
+        <div class="best-window" id="bestWindow"></div>
+      </div>
+    </div>
+
+    <div class="factors-grid" id="factorsGrid"></div>
+
+    <div class="legend">
+      <span>Tonight's score by hour:</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--good)"></span>Good (70+)</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--okay)"></span>Okay (40–70)</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--poor)"></span>Poor (&lt;40)</span>
+    </div>
+
+    <div class="hourly-section">
+      <h3>Hourly breakdown — tonight</h3>
+      <div class="hourly-grid" id="hourlyGrid"></div>
+    </div>
+
+    <div class="week-section">
+      <h3>7-day outlook</h3>
+      <div class="week-grid" id="weekGrid"></div>
+    </div>
+
+    <div class="dark-sky-section">
+      <h3>Nearest dark sky reserves</h3>
+      <div class="reserve-list" id="reserveList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DARK_SKY_RESERVES = [
+  { name: "Aoraki Mackenzie", lat: -43.99, lng: 170.10, bortle: 1, desc: "World's largest dark sky reserve", icon: "🏔️" },
+  { name: "Stewart Island / Rakiura", lat: -46.90, lng: 168.10, bortle: 1, desc: "Pristine southern skies, aurora views", icon: "🌊" },
+  { name: "Wai-iti Dark Sky Reserve", lat: -41.35, lng: 172.95, bortle: 2, desc: "Nelson Tasman region", icon: "🌿" },
+  { name: "Westland Tai Poutini NP", lat: -43.37, lng: 170.20, bortle: 2, desc: "West Coast glaciers & dark skies", icon: "❄️" },
+  { name: "Tongariro NP", lat: -39.20, lng: 175.55, bortle: 2, desc: "Central Plateau volcanic skies", icon: "🌋" },
+  { name: "Cape Kidnappers", lat: -39.63, lng: 177.09, bortle: 3, desc: "Hawke's Bay coastal reserve", icon: "🌊" },
+  { name: "Whanganui NP", lat: -39.55, lng: 174.90, bortle: 3, desc: "Deep river valley darkness", icon: "🌲" },
+  { name: "Fiordland NP", lat: -45.41, lng: 167.72, bortle: 1, desc: "Remote southern wilderness", icon: "⛰️" },
+  { name: "Northland Dark Sky Reserve", lat: -35.73, lng: 173.87, bortle: 3, desc: "Kauri forest escapes", icon: "🌳" },
+  { name: "Marlborough Sounds", lat: -41.18, lng: 174.00, bortle: 3, desc: "Sheltered inlets, low horizon", icon: "⛵" },
+];
+
+let currentLat = null, currentLng = null, currentWeather = null;
+
+function generateStars() {
+  const sf = document.getElementById('starfield');
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = Math.random() * 1.8 + 0.5;
+    s.style.cssText = `
+      width:${sz}px; height:${sz}px;
+      left:${Math.random()*100}%;
+      top:${Math.random()*100}%;
+      --d:${(Math.random()*3+2).toFixed(1)}s;
+      --delay:-${(Math.random()*4).toFixed(1)}s;
+      --lo:${(Math.random()*0.2+0.1).toFixed(2)};
+      --hi:${(Math.random()*0.5+0.4).toFixed(2)};
+    `;
+    sf.appendChild(s);
+  }
+}
+
+generateStars();
+
+let suggestTimer = null;
+document.getElementById('locationInput').addEventListener('input', function() {
+  clearTimeout(suggestTimer);
+  const val = this.value.trim();
+  if (val.length < 3) { hideSuggestions(); return; }
+  suggestTimer = setTimeout(() => fetchSuggestions(val), 350);
+});
+
+document.getElementById('locationInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doSearch();
+});
+
+async function fetchSuggestions(q) {
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=en&format=json`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const results = (data.results || []).filter(r => r.country_code === 'NZ');
+    showSuggestions(results);
+  } catch(e) {}
+}
+
+function showSuggestions(items) {
+  const box = document.getElementById('suggestions');
+  if (!items.length) { hideSuggestions(); return; }
+  box.innerHTML = '';
+  items.forEach(item => {
+    const d = document.createElement('div');
+    d.className = 'suggestion-item';
+    const parts = [item.name, item.admin1].filter(Boolean);
+    const name = parts.join(', ');
+    d.textContent = name;
+    d.onclick = () => {
+      document.getElementById('locationInput').value = name;
+      hideSuggestions();
+      doSearchWithCoords(item.latitude, item.longitude, name);
+    };
+    box.appendChild(d);
+  });
+  box.style.display = 'block';
+}
+
+function hideSuggestions() {
+  document.getElementById('suggestions').style.display = 'none';
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-group')) hideSuggestions();
+});
+
+async function doSearch() {
+  const q = document.getElementById('locationInput').value.trim();
+  if (!q) return;
+  hideSuggestions();
+  setLoading(true);
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=10&language=en&format=json`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const results = (data.results || []).filter(r => r.country_code === 'NZ');
+    if (!results.length) { showError("Location not found in New Zealand. Try 'Queenstown' or 'Lake Tekapo'."); setLoading(false); return; }
+    const item = results[0];
+    const name = [item.name, item.admin1].filter(Boolean).join(', ');
+    doSearchWithCoords(item.latitude, item.longitude, name);
+  } catch(e) {
+    showError("Could not fetch location. Please check your connection.");
+    setLoading(false);
+  }
+}
+
+async function doSearchWithCoords(lat, lng, name) {
+  setLoading(true);
+  clearError();
+  currentLat = lat; currentLng = lng;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+      `&hourly=cloud_cover,relative_humidity_2m,wind_speed_10m,visibility,precipitation_probability` +
+      `&daily=precipitation_probability_max,cloud_cover_mean` +
+      `&timezone=Pacific%2FAuckland&forecast_days=7`;
+    const res = await fetch(url);
+    const data = await res.json();
+    currentWeather = data;
+    renderResults(lat, lng, name, data);
+  } catch(e) {
+    showError("Could not fetch weather data. Please try again.");
+  }
+  setLoading(false);
+}
+
+function moonPhase(date) {
+  const known = new Date(2000, 0, 6);
+  const cycle = 29.53059;
+  const diff = (date - known) / (1000 * 60 * 60 * 24);
+  const phase = ((diff % cycle) + cycle) % cycle;
+  const illum = Math.round((1 - Math.cos(2 * Math.PI * phase / cycle)) / 2 * 100);
+  let name = '';
+  if (phase < 1.85) name = 'New Moon 🌑';
+  else if (phase < 7.38) name = 'Waxing Crescent 🌒';
+  else if (phase < 9.22) name = 'First Quarter 🌓';
+  else if (phase < 14.77) name = 'Waxing Gibbous 🌔';
+  else if (phase < 16.61) name = 'Full Moon 🌕';
+  else if (phase < 22.15) name = 'Waning Gibbous 🌖';
+  else if (phase < 23.99) name = 'Last Quarter 🌗';
+  else name = 'Waning Crescent 🌘';
+  return { phase, illum, name };
+}
+
+function lightPollutionScore(lat, lng) {
+  const reserves = DARK_SKY_RESERVES;
+  let minDist = Infinity;
+  let nearest = null;
+  reserves.forEach(r => {
+    const d = haversine(lat, lng, r.lat, r.lng);
+    if (d < minDist) { minDist = d; nearest = r; }
+  });
+  let score = 0;
+  if (minDist < 20) score = 95;
+  else if (minDist < 50) score = 80;
+  else if (minDist < 100) score = 60;
+  else if (minDist < 200) score = 40;
+  else score = 20;
+  const majorCities = [
+    { name: 'Auckland', lat: -36.86, lng: 174.76, radius: 50 },
+    { name: 'Wellington', lat: -41.29, lng: 174.78, radius: 30 },
+    { name: 'Christchurch', lat: -43.53, lng: 172.64, radius: 35 },
+    { name: 'Hamilton', lat: -37.79, lng: 175.28, radius: 25 },
+    { name: 'Tauranga', lat: -37.69, lng: 176.17, radius: 20 },
+    { name: 'Dunedin', lat: -45.88, lng: 170.50, radius: 20 },
+  ];
+  majorCities.forEach(c => {
+    const d = haversine(lat, lng, c.lat, c.lng);
+    if (d < c.radius) score = Math.min(score, 15);
+    else if (d < c.radius * 2) score = Math.min(score, 35);
+  });
+  return { score, nearestReserve: nearest, distToReserve: Math.round(minDist) };
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function computeScore(cloud, humidity, windSpeed, moonIllum, lpScore) {
+  const cloudScore = Math.max(0, (100 - cloud) * 0.40);
+  const moonScore = Math.max(0, (100 - moonIllum) * 0.25);
+  const lpFactor = lpScore * 0.20 / 100;
+  const humidScore = Math.max(0, (80 - humidity) / 80) * 0.10 * 100 * 0.10;
+  const windScore = windSpeed < 20 ? 0.05 * 100 : Math.max(0, (40 - windSpeed) / 40) * 0.05 * 100;
+  return Math.round(Math.min(100, cloudScore + moonScore + lpFactor * 100 + humidScore + windScore));
+}
+
+function scoreColor(s) {
+  if (s >= 70) return 'var(--good)';
+  if (s >= 40) return 'var(--okay)';
+  return 'var(--poor)';
+}
+
+function scoreLabel(s) {
+  if (s >= 80) return 'Excellent stargazing';
+  if (s >= 65) return 'Good conditions';
+  if (s >= 45) return 'Fair conditions';
+  if (s >= 25) return 'Poor conditions';
+  return 'Not suitable tonight';
+}
+
+function scoreVerdict(s, cloud, moon) {
+  if (s >= 70) return `Clear skies expected with ${cloud}% cloud cover. ${moon.name} (${moon.illum}% illuminated) — minimal interference.`;
+  if (s >= 45) return `Partly cloudy (${cloud}%). ${moon.name} at ${moon.illum}% illumination may wash out fainter stars.`;
+  return `Heavy cloud cover (${cloud}%) will obscure most of the sky. Check other nights this week.`;
+}
+
+function renderResults(lat, lng, name, data) {
+  const today = new Date();
+  const moon = moonPhase(today);
+  const lp = lightPollutionScore(lat, lng);
+
+  const hours = data.hourly.time;
+  const clouds = data.hourly.cloud_cover;
+  const humidity = data.hourly.relative_humidity_2m;
+  const wind = data.hourly.wind_speed_10m;
+
+  const nowIdx = new Date().getHours();
+  const todayCloud = clouds[nowIdx] ?? clouds[0];
+  const todayHumidity = humidity[nowIdx] ?? humidity[0];
+  const todayWind = wind[nowIdx] ?? wind[0];
+
+  const todayScore = computeScore(todayCloud, todayHumidity, todayWind, moon.illum, lp.score);
+
+  document.getElementById('locationName').textContent = name.split(',')[0];
+  document.getElementById('locationCoords').textContent = `${lat.toFixed(3)}°S, ${Math.abs(lng).toFixed(3)}°E`;
+
+  const arc = document.getElementById('scoreArc');
+  const circ = 314;
+  const offset = circ - (todayScore / 100) * circ;
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = scoreColor(todayScore);
+
+  document.getElementById('scoreNum').textContent = todayScore;
+  document.getElementById('scoreNum').style.color = scoreColor(todayScore);
+  document.getElementById('scoreTitle').textContent = scoreLabel(todayScore);
+  document.getElementById('scoreVerdict').textContent = scoreVerdict(todayScore, todayCloud, moon);
+
+  let bestScore = 0, bestHour = null;
+  const nightHours = [20,21,22,23,0,1,2,3,4];
+  nightHours.forEach(h => {
+    const idx = h < 20 ? h : h;
+    const s = computeScore(clouds[idx]??50, humidity[idx]??70, wind[idx]??10, moon.illum, lp.score);
+    if (s > bestScore) { bestScore = s; bestHour = h; }
+  });
+
+  const bw = document.getElementById('bestWindow');
+  if (bestHour !== null && bestScore >= 40) {
+    const fmt = bestHour === 0 ? 'midnight' : bestHour < 12 ? `${bestHour}am` : `${bestHour}pm`;
+    bw.innerHTML = `Best window tonight: <span>around ${fmt}</span> (score ${bestScore})`;
+  } else {
+    bw.innerHTML = `Best spot nearby: <span>${lp.nearestReserve?.name ?? 'Aoraki Mackenzie'}</span> — ${lp.distToReserve}km away`;
+  }
+
+  const factors = [
+    {
+      label: 'Cloud cover',
+      value: `${todayCloud}%`,
+      sub: todayCloud < 20 ? 'Clear' : todayCloud < 60 ? 'Partly cloudy' : 'Overcast',
+      bar: 100 - todayCloud,
+      color: todayCloud < 30 ? 'var(--good)' : todayCloud < 70 ? 'var(--okay)' : 'var(--poor)'
+    },
+    {
+      label: 'Moon phase',
+      value: `${moon.illum}%`,
+      sub: moon.name,
+      bar: 100 - moon.illum,
+      color: moon.illum < 30 ? 'var(--good)' : moon.illum < 70 ? 'var(--okay)' : 'var(--poor)'
+    },
+    {
+      label: 'Light pollution',
+      value: `${lp.score}/100`,
+      sub: lp.score > 70 ? 'Dark skies' : lp.score > 40 ? 'Some pollution' : 'Light polluted',
+      bar: lp.score,
+      color: lp.score > 70 ? 'var(--good)' : lp.score > 40 ? 'var(--okay)' : 'var(--poor)'
+    },
+    {
+      label: 'Humidity',
+      value: `${todayHumidity}%`,
+      sub: todayHumidity < 60 ? 'Low — good transparency' : 'High — hazy skies',
+      bar: 100 - todayHumidity,
+      color: todayHumidity < 60 ? 'var(--good)' : 'var(--okay)'
+    },
+    {
+      label: 'Wind speed',
+      value: `${todayWind} km/h`,
+      sub: todayWind < 15 ? 'Calm — stable seeing' : todayWind < 30 ? 'Light breeze' : 'Windy',
+      bar: Math.max(0, 100 - todayWind * 2),
+      color: todayWind < 15 ? 'var(--good)' : todayWind < 30 ? 'var(--okay)' : 'var(--poor)'
+    },
+  ];
+
+  const fg = document.getElementById('factorsGrid');
+  fg.innerHTML = factors.map(f => `
+    <div class="factor-card">
+      <div class="f-label">${f.label}</div>
+      <div class="f-value" style="color:${f.color}">${f.value}</div>
+      <div class="f-sub">${f.sub}</div>
+      <div class="f-bar"><div class="f-bar-fill" style="width:${f.bar}%;background:${f.color}"></div></div>
+    </div>
+  `).join('');
+
+  const nightStart = 20, nightEnd = 5;
+  const hg = document.getElementById('hourlyGrid');
+  const nightIdxs = [];
+  for (let h = 20; h <= 23; h++) nightIdxs.push(h);
+  for (let h = 0; h <= 5; h++) nightIdxs.push(h);
+
+  hg.innerHTML = nightIdxs.map(h => {
+    const s = computeScore(clouds[h]??50, humidity[h]??70, wind[h]??10, moon.illum, lp.score);
+    const label = h === 0 ? '12am' : h < 12 ? `${h}am` : `${h}pm`;
+    return `<div class="hour-block">
+      <div class="h-time">${label}</div>
+      <div class="h-score" style="color:${scoreColor(s)}">${s}</div>
+      <div class="h-cloud">${clouds[h]??'--'}%☁</div>
+    </div>`;
+  }).join('');
+
+  const wg = document.getElementById('weekGrid');
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  wg.innerHTML = data.daily.time.map((dateStr, i) => {
+    const d = new Date(dateStr);
+    const dayMoon = moonPhase(d);
+    const dayCloud = data.daily.cloud_cover_mean[i] ?? 50;
+    const s = computeScore(dayCloud, 65, 10, dayMoon.illum, lp.score);
+    const isToday = i === 0;
+    const dayNum = d.getDate();
+    return `<div class="day-card${isToday?' active':''}" onclick="selectDay(this,${i})">
+      <div class="day-name">${days[d.getDay()]}</div>
+      <div class="day-num">${dayNum}</div>
+      <div class="day-score-dot" style="background:${scoreColor(s)}22;color:${scoreColor(s)}">${s}</div>
+    </div>`;
+  }).join('');
+
+  renderReserves(lat, lng, data, moon);
+
+  document.getElementById('results').classList.add('visible');
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function selectDay(el, idx) {
+  document.querySelectorAll('.day-card').forEach(d => d.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function renderReserves(lat, lng, data, moon) {
+  const sorted = DARK_SKY_RESERVES.map(r => {
+    const dist = Math.round(haversine(lat, lng, r.lat, r.lng));
+    const cloud = data.daily.cloud_cover_mean[0] ?? 50;
+    const score = computeScore(cloud, 65, 10, moon.illum, 90 + (3 - r.bortle) * 3);
+    return { ...r, dist, score };
+  })
+  .filter(r => r.dist < 600)
+  .sort((a, b) => a.dist - b.dist)
+  .slice(0, 4);
+
+  document.getElementById('reserveList').innerHTML = sorted.map(r => `
+    <div class="reserve-card">
+      <div class="r-icon">${r.icon}</div>
+      <div class="r-info">
+        <div class="r-name">${r.name}</div>
+        <div class="r-details">${r.dist}km away · Bortle ${r.bortle} · ${r.desc}</div>
+      </div>
+      <div class="r-score" style="color:${scoreColor(r.score)}">${r.score}</div>
+    </div>
+  `).join('') || '<p style="color:var(--muted);font-size:14px">No dark sky reserves within range.</p>';
+}
+
+function setLoading(v) {
+  document.getElementById('loading').classList.toggle('visible', v);
+  document.getElementById('searchBtn').disabled = v;
+  if (v) document.getElementById('results').classList.remove('visible');
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function clearError() {
+  document.getElementById('errorMsg').classList.remove('visible');
+}
+</script>
+</body>
+</html>
