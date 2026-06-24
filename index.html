@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NZ Dark Sky Finder</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7c6af7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dark Sky">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -536,6 +542,23 @@ function generateStars() {
 }
 
 generateStars();
+
+// Register service worker
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/Stargaze/sw.js")
+      .then(reg => console.log("[SW] Registered:", reg.scope))
+      .catch(err => console.log("[SW] Failed:", err));
+  });
+}
+
+// Offline banner
+const offlineBanner = document.createElement("div");
+offlineBanner.style.cssText = "display:none;position:fixed;bottom:0;left:0;right:0;background:#e05555;color:white;text-align:center;padding:10px;font-size:14px;z-index:9999;";
+offlineBanner.textContent = "📡 You are offline — live forecasts unavailable";
+document.body.appendChild(offlineBanner);
+window.addEventListener("offline", () => offlineBanner.style.display = "block");
+window.addEventListener("online", () => offlineBanner.style.display = "none");
 
 let suggestTimer = null;
 document.getElementById('locationInput').addEventListener('input', function() {
